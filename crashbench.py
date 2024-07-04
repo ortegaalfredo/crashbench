@@ -136,13 +136,15 @@ def main():
     parser.add_argument('--repeat', '-r', type=int, default=5, help='Number of test repetitions to average')
     parser.add_argument('--model', type=str, default='Neuroengine-Large', help='Model name')
     parser.add_argument('--oai', action='store_true', help='Use OpenAI. Need api-key.txt file')
+    parser.add_argument('--endpoint', type=str, default="https://api.openai.com/v1",help='OpenAI-style endpoint to use')
     args = parser.parse_args()
     print(f'\t[I] Model: {args.model}')
     print(f'\t[I] Repeat: {args.repeat}')
     if args.oai:
         use_openai=True
+        openai.api_base=args.endpoint
+        print(f'\t[I] Using OpenAI API, Endpoint: {openai.api_base}')
         read_apikey()
-        print(f'\t[I] Using OpenAI models')
     else: use_openai=False
 
     service_name=args.model
