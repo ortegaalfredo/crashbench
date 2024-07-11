@@ -8,7 +8,7 @@
 
 
 
-static __be32 *read_buf(struct nfsd4_compoundargs *argp, u32 nbytes)
+be32 read_buf(struct nfsd4_compoundargs *argp, u32 nbytes)
 {
 	/* We want more bytes than seem to be available.
 	 * Maybe we need a new page, maybe we have just run out

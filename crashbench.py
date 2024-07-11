@@ -92,7 +92,7 @@ def findBug(file_path,bugline):
             a=open(file_path)
             c_code=a.read()
             a.close()
-        except: return
+        except: return 0
         fc+=1
         # Extract function bodies
         function_bodies = extract_function_bodies(c_code)
@@ -127,6 +127,7 @@ def findBug(file_path,bugline):
                 return 1
             print("\t[I] Bug not found")
             return 0
+        return 0
 
 def main():
     global service_name
