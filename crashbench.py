@@ -109,7 +109,7 @@ def findBug(file_path,bugline):
                 report=call_neuroengine(code,prompt)
             report+=f'-----{function[0]}---------------: {report}'
             count+=1
-            time.sleep(1)
+            time.sleep(0.5)
         if (count>0):
             print(f'\t[I] Test file: {file_path} report:\n{report}')
             # Find bug line
@@ -143,6 +143,8 @@ def main():
     print(f'\t[I] Repeat: {args.repeat}')
     if args.oai:
         use_openai=True
+        if args.model=="Neuroengine-Large": # change default model name if using OpenaI
+            args.model="gpt-4o"
         openai.api_base=args.endpoint
         print(f'\t[I] Using OpenAI API, Endpoint: {openai.api_base}')
         read_apikey()
