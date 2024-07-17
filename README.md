@@ -3,16 +3,20 @@ Crashbench is a LLM benchmark to measure bug-finding and reporting capabilities 
 
 ## Usage:
 Example usage for OpenAI:
-       python crashbench.py --oai --model gpt-4o
+
+    python crashbench.py --oai --model gpt-4o
 
 Example using Neuroengine ai provider:
-       python crashbench.py --model Neuroengine-Medium
+
+    python crashbench.py --model Neuroengine-Medium
 
 Example using custom openai-style provider (for tabby-api/vllm/aphrodite engine):
-       python crashbench.py --oai --endpoint http://127.0.0.1:5000/v1
+
+    python crashbench.py --oai --endpoint http://127.0.0.1:5000/v1
 
 Also the API key can be written in the api-key.txt file or passed though an environment variable:
-       OPENAI_API_KEY="xxxx" python crashbench.py  --oai
+
+    OPENAI_API_KEY="xxxx" python crashbench.py  --oai
 
 ## Configuration
 
