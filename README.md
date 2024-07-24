@@ -37,7 +37,7 @@ file2=tests/stack2.c,6
 
 Each entry just have the test filename and expected line of the bug, if found. If no bug is expected to be found (for a false positive test), adjust the line number to 0. Every found bug increases the final score.
 
-## Current leaderboard (V1)
+## Current leaderboard (V2)
 
-![Leaderboard](https://raw.githubusercontent.com/ortegaalfredo/crashbench/main/models-scores.png)
+![Leaderboard V2](https://raw.githubusercontent.com/ortegaalfredo/crashbench/main/models-scores-v2.png)
 
