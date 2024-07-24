@@ -18,6 +18,13 @@ Also the API key can be written in the api-key.txt file or passed though an envi
 
     OPENAI_API_KEY="xxxx" python crashbench.py  --oai
 
+## Article
+
+This benchmark was presented at Off-by-One conf 2024.
+Article describing it can be downloaded here:
+
+[AI powered bughunting](https://github.com/ortegaalfredo/autokaker/blob/main/doc/AI-powered-bughunting-aortega-paper.pdf)
+
 ## Configuration
 
 Test cases are stored in the config.ini file. The test format is:

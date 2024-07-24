@@ -27,7 +27,7 @@ def readConfig(filename):
 
 # ---------- OpenAI interface
 
-temperature = 0.8
+temperature = 0.0
 
 def check_api_key_validity(api_key):
    try:
@@ -67,7 +67,7 @@ service_name = 'Neuroengine-Large'
 def call_neuroengine(code,prompt):
     global service_name
     hub=Neuroengine(service_name=service_name)
-    answer=hub.request(prompt=f"{prompt}:\n{code}",raw=False,temperature=1.0,max_new_len=512,seed=5)
+    answer=hub.request(prompt=f"{prompt}:\n{code}",raw=False,temperature=temperature,max_new_len=512,seed=5)
     return(answer)
 
 
