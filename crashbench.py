@@ -5,6 +5,9 @@ import fnmatch
 import os,openai,argparse,sys
 import configparser
 import argparse
+import tiktoken
+import anthropic
+
 
 from neuroengine import Neuroengine
 # example usage for OpenAI:
@@ -25,7 +28,11 @@ def readConfig(filename):
     system_prompt = settings_section.get('SystemPrompt')
     return (system_prompt,prompt)
 
-# ---------- OpenAI interface
+# ----- Only needed to estimate token usage
+totalTokens=0
+tokenizer = tiktoken.get_encoding("cl100k_base")
+
+# ---------- OpenAI API-style interface
 
 temperature = 0.0
 
@@ -35,12 +42,28 @@ def check_api_key_validity(api_key):
         ml=openai.Model.list()
         print("\t[I] OpenAI API key is valid")
    except openai.OpenAIError as e:
+        print(e)
         print("\t[E] Invalid OpenAI API key")
         exit(-1)
 
+def call_AI_claude(prompt, model="claude-3-opus-20240229"):
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if api_key is None:
+        print("[E] Cannot read environment variable ANTHROPIC_API_KEY")
+        exit(-1)
+    client = anthropic.Anthropic(api_key=api_key)
+    response = client.messages.create(
+        model=model,
+        max_tokens=1024,
+        temperature=0.0,
+        system="You are an expert security researcher, programmer and bug finder. You analyze every code you see and are capable of finding programming bugs at an expert or super-human level.",
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.content[0].text
+
 def call_AI_chatGPT(prompt,model):
-        #model = "gpt-3.5-turbo"
-        #model="gpt-4-0613"
         response = openai.ChatCompletion.create(
             model=model,
             messages =[
@@ -85,6 +108,7 @@ fc=0
 def findBug(file_path,bugline):
         global fc
         global service_name
+        global totalTokens
         # Read configuration
         prompt,systemprompt=readConfig('config.ini')
         prompt=systemprompt+"\n"+prompt
@@ -100,16 +124,29 @@ def findBug(file_path,bugline):
         report=""
         count=0
     
+        tokens=0
         for function in function_bodies:
             code=f"{function[0]} {{ {function[1]} }}"
             if use_openai:
                 prompt=f"{prompt}:\n{code}"
                 report=call_AI_chatGPT(prompt,service_name)
-            else:
+            if use_claude:
+                prompt=f"{prompt}:\n{code}"
+                report=call_AI_claude(prompt,service_name)
+            if use_neuroengine:
                 report=call_neuroengine(code,prompt)
+            # Estimate amount of used tokens
+            try:
+                tokens+=len(tokenizer.encode(prompt))+34
+                tokens+=len(tokenizer.encode(report))
+                if use_neuroengine:
+                    tokens+=len(tokenizer.encode(code))
+            except: pass
             report+=f'-----{function[0]}---------------: {report}'
             count+=1
             time.sleep(0.5)
+        totalTokens+=tokens
+        print(f'\t[I] Used tokens on this stage: {tokens} total Tokens: {totalTokens}')
         if (count>0):
             print(f'\t[I] Test file: {file_path} report:\n{report}')
             # Find bug line
@@ -131,24 +168,34 @@ def findBug(file_path,bugline):
 
 def main():
     global service_name
-    global use_openai
+    global use_openai,use_claude,use_neuroengine
+    global totalTokens
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--repeat', '-r', type=int, default=5, help='Number of test repetitions to average')
     parser.add_argument('--model', type=str, default='Neuroengine-Large', help='Model name')
     parser.add_argument('--oai', action='store_true', help='Use OpenAI. Need api-key.txt file')
+    parser.add_argument('--claude', action='store_true', help='Use Claude. Need API key on environment variable ANTHROPIC_API_KEY')
     parser.add_argument('--endpoint', type=str, default="https://api.openai.com/v1",help='OpenAI-style endpoint to use')
     args = parser.parse_args()
-    print(f'\t[I] Model: {args.model}')
-    print(f'\t[I] Repeat: {args.repeat}')
+    use_neuroengine=True
+    if args.claude:
+        use_claude=True
+        use_neuroengine=False
+        use_openai=False
+        if args.model=="Neuroengine-Large": # change default model name if using claude
+            args.model="claude-3-opus-20240229"
     if args.oai:
         use_openai=True
+        use_claude=False
+        use_neuroengine=False
         if args.model=="Neuroengine-Large": # change default model name if using OpenaI
             args.model="gpt-4o"
         openai.api_base=args.endpoint
-        print(f'\t[I] Using OpenAI API, Endpoint: {openai.api_base}')
+        print(f'\t[I] Using OpenAI API, Endpoint: {openai.api_base} model {args.model}')
         read_apikey()
-    else: use_openai=False
+    print(f'\t[I] Model: {args.model}')
+    print(f'\t[I] Repeat: {args.repeat}')
 
     service_name=args.model
 
@@ -166,6 +213,7 @@ def main():
         else: maxscore+=len(config[section])
     print(f"\t[I] Max possible score: {maxscore}")
     # Read test files
+    totalTokens=0
     for section in config:
         if section=="DEFAULT" or section=="SETTINGS":
             continue
@@ -182,6 +230,7 @@ def main():
                 tmpscore+=score
             totalscore+=(tmpscore/args.repeat)
             print(f"\t[I] Score:{totalscore}")
+    print(f"\t[I] Total tokens used: {totalTokens}")
     print(f"\t[I] Final score: {totalscore}/{maxscore}")
     
 
