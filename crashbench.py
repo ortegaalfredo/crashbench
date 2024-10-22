@@ -7,9 +7,9 @@ import configparser
 import argparse
 import tiktoken
 import anthropic
-
-
+from enum import Enum
 from neuroengine import Neuroengine
+
 # example usage for OpenAI:
 #       python benchmark-oai.py --oai --model gpt-4o
 # example for Neuroengine:
@@ -27,6 +27,12 @@ def readConfig(filename):
     prompt = settings_section.get('Prompt')
     system_prompt = settings_section.get('SystemPrompt')
     return (system_prompt,prompt)
+
+
+class engineType(Enum):
+    OPENAI = "openai"
+    CLAUDE = "claude"
+    NEUROENGINE = "neuroengine"
 
 # ----- Only needed to estimate token usage
 totalTokens=0
@@ -105,10 +111,11 @@ def extract_function_bodies(c_code):
     return functions
 
 fc=0
-def findBug(file_path,bugline):
+def findBug(file_path,bugline,):
         global fc
         global service_name
         global totalTokens
+        global engine
         # Read configuration
         prompt,systemprompt=readConfig('config.ini')
         prompt=systemprompt+"\n"+prompt
@@ -127,19 +134,19 @@ def findBug(file_path,bugline):
         tokens=0
         for function in function_bodies:
             code=f"{function[0]} {{ {function[1]} }}"
-            if use_openai:
+            if engine==engineType.OPENAI:
                 prompt=f"{prompt}:\n{code}"
                 report=call_AI_chatGPT(prompt,service_name)
-            if use_claude:
+            if engine==engineType.CLAUDE:
                 prompt=f"{prompt}:\n{code}"
                 report=call_AI_claude(prompt,service_name)
-            if use_neuroengine:
+            if engine==engineType.NEUROENGINE:
                 report=call_neuroengine(code,prompt)
             # Estimate amount of used tokens
             try:
                 tokens+=len(tokenizer.encode(prompt))+34
                 tokens+=len(tokenizer.encode(report))
-                if use_neuroengine:
+                if engine==engineType.NEUROENGINE:
                     tokens+=len(tokenizer.encode(code))
             except: pass
             report+=f'-----{function[0]}---------------: {report}'
@@ -168,7 +175,7 @@ def findBug(file_path,bugline):
 
 def main():
     global service_name
-    global use_openai,use_claude,use_neuroengine
+    global engine
     global totalTokens
     # Parse arguments
     parser = argparse.ArgumentParser()
@@ -178,17 +185,13 @@ def main():
     parser.add_argument('--claude', action='store_true', help='Use Claude. Need API key on environment variable ANTHROPIC_API_KEY')
     parser.add_argument('--endpoint', type=str, default="https://api.openai.com/v1",help='OpenAI-style endpoint to use')
     args = parser.parse_args()
-    use_neuroengine=True
+    engine=engineType.NEUROENGINE
     if args.claude:
-        use_claude=True
-        use_neuroengine=False
-        use_openai=False
+        engine=engineType.CLAUDE
         if args.model=="Neuroengine-Large": # change default model name if using claude
             args.model="claude-3-opus-20240229"
     if args.oai:
-        use_openai=True
-        use_claude=False
-        use_neuroengine=False
+        engine=engineType.OPENAI
         if args.model=="Neuroengine-Large": # change default model name if using OpenaI
             args.model="gpt-4o"
         openai.api_base=args.endpoint
