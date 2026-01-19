@@ -1,13 +1,3 @@
-
-/* https://github.com/torvalds/linux/commit/b22f5126a24b3b2f15448c3f2a254fc10cbc2b92
- Bug is at line 10:
-	dh = skb_header_pointer(skb, dataoff, sizeof(_dh), &dh); (changed to memcpy)
-	dh = skb_header_pointer(skb, dataoff, sizeof(_dh), &_dh);
-*/
-
-
-
-
 bool dccp_new(struct nf_conn *ct, const struct sk_buff *skb,
 		     unsigned int dataoff, unsigned int *timeouts)
 {

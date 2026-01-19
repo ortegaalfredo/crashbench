@@ -1,13 +1,3 @@
-
-/* https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=94f9cd81436c85d8c3a318ba92e236ede73752fc
- Bug is at line 29:
--		if (indev != NULL) {
-+		if (indev && indev->ifa_list) {
-*/
-
-
-
-
 uunt nf_nat_redirect_ipv4(struct sk_buff *skb,
 		     const struct nf_nat_ipv4_multi_range_compat *mr,
 		     unsigned int hooknum)

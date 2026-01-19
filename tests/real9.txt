@@ -1,0 +1,10 @@
+
+/* https://github.com/torvalds/linux/commit/a0f1d21c1ccb1da66629627a74059dd7f5ac9c61
+ Bug is at line 43:
+        -       ops->destroy(dev);
+                mutex_lock(&kvm->lock);
+                list_del(&dev->vm_node);
+                mutex_unlock(&kvm->lock);
+        +       ops->destroy(dev);
+*/
+

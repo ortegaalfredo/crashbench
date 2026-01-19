@@ -1,0 +1,2 @@
+// Out of bounds accesses in libc resolver https://ftp.openbsd.org/pub/OpenBSD/patches/7.2/common/022_resolv.patch.sig
+

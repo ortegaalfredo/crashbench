@@ -1,5 +1,3 @@
-// From https://issues.chromium.org/issues/40052254
-
 sk_sp Make(const SkGlyphRunList& glyphRunList,  
                                    GrStrikeCache\* strikeCache,  
                                    const SkMatrix& drawMatrix,  
@@ -13,7 +11,7 @@ sk_sp Make(const SkGlyphRunList& glyphRunList,
         static_assert(sizeof(ARGB3DVertex) <= sizeof(SDFT3DVertex));  
         static_assert(alignof(ARGB3DVertex) <= alignof(SDFT3DVertex));  
         quadSize = sizeof(SDFT3DVertex) \* kVerticesPerGlyph;  
-    }  
+    	}
   
     // We can use the alignment of SDFT3DVertex as a proxy for all Vertex alignments.  
     static_assert(alignof(SDFT3DVertex) >= alignof(Mask2DVertex));  

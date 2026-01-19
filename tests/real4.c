@@ -1,13 +1,3 @@
-
-/* https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=2bc3c1179c781b359d4f2f3439cb3df72afc17fc
- Bug is at line 32:
- 	if (argp->pagelen < PAGE_SIZE) {
--		argp->end = p + (argp->pagelen>>2);
-+		argp->end = argp->p + (argp->pagelen>>2);
-*/
-
-
-
 be32 read_buf(struct nfsd4_compoundargs *argp, u32 nbytes)
 {
 	/* We want more bytes than seem to be available.

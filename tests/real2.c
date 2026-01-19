@@ -1,6 +1,3 @@
-// Out of bounds accesses in libc resolver https://ftp.openbsd.org/pub/OpenBSD/patches/7.2/common/022_resolv.patch.sig
-//
-
 static ssize_t
 dname_expand(const unsigned char *data, size_t len, size_t offset,
     size_t *newoffset, char *dst, size_t max)
@@ -26,8 +23,6 @@ dname_expand(const unsigned char *data, size_t len, size_t offset,
 			offset = start = ptr;
 			continue;
 		}
-		if (offset + n + 1 > len)
-			return (-1);
 
 		if (dname_check_label(data + offset + 1, n) == -1)
 			return (-1);

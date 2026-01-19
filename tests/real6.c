@@ -1,13 +1,3 @@
-
-/* https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=2638fd0f92d4397884fd991d8f4925cb3f081901
- Bug is at line 29:
--	if (len < tcp_hdrlen)
-+	if (len < tcp_hdrlen || tcp_hdrlen < sizeof(struct tcphdr))
-*/
-
-
-
-
 int tcpmss_mangle_packet(struct sk_buff *skb,
 		     const struct xt_action_param *par,
 		     unsigned int family,
