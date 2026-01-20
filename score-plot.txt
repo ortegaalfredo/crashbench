@@ -1,0 +1,82 @@
+Score Zeroshot prompt adjusted:
+	[I] Final score: 68.8/123
+	[I] Total tokens used: 304741
+	[I] Total time: 484.67 seconds
+	[I] Tokens per second: 628.77
+
+Qwen3-14B-Local:
+	[I] Final score: 55.6/123
+	[I] Total tokens used: 283320
+	[I] Total time: 492.44 seconds
+	[I] Tokens per second: 575.34
+
+Qwen3-14B-Openrouter:
+	[I] Final score: 55.8/123
+	[I] Total tokens used: 64478
+	[I] Total time: 321.73 seconds
+	[I] Tokens per second: 200.41
+
+Deepseek-chat 3.2 API:
+	[I] Final score: 99.0/123
+	[I] Total tokens used: 78298
+	[I] Total time: 52.89 seconds
+	[I] Tokens per second: 1480.27
+
+Deepseek-reasoner 3.2 API:
+	[I] Final score: 80.8/123
+	[I] Total tokens used: 73414
+	[I] Total time: 698.32 seconds
+	[I] Tokens per second: 105.13
+
+GLM 4.5 air:
+	[I] Final score: 73.8/123
+	[I] Total tokens used: 84647
+	[I] Total time: 88.29 seconds
+	[I] Tokens per second: 958.69
+Qwen3-32b:
+	[I] Final score: 75.8/123
+	[I] Total tokens used: 71337
+	[I] Total time: 263.40 seconds
+	[I] Tokens per second: 270.83
+
+qwen/qwen3-30b-a3b-thinking-2507
+	[I] Final score: 66.4/123
+	[I] Total tokens used: 62934
+	[I] Total time: 272.65 seconds
+	[I] Tokens per second: 230.82
+x-ai/grok-4.1-fast:
+	[I] Final score: 66.6/123
+	[I] Total tokens used: 95133
+	[I] Total time: 446.59 seconds
+	[I] Tokens per second: 213.02
+google/gemini-3-flash-preview:
+	[I] Final score: 97.0/123
+	[I] Total tokens used: 95275
+	[I] Total time: 44.39 seconds
+	[I] Tokens per second: 2146.13
+openai/gpt-oss-20b:
+	[I] Final score: 90.2/123
+	[I] Total tokens used: 73414
+	[I] Total time: 124.78 seconds
+	[I] Tokens per second: 588.33
+anthropic/claude-sonnet-4.5:
+	[I] Final score: 89.0/123
+	[I] Total tokens used: 125505
+	[I] Total time: 102.56 seconds
+	[I] Tokens per second: 1223.69
+qwen/qwq-32b:
+	[I] Final score: 68.4/123
+	[I] Total tokens used: 71678
+	[I] Total time: 522.85 seconds
+	[I] Tokens per second: 137.09
+google/gemma-3-27b-it:
+	[I] Final score: 72.6/123
+	[I] Total tokens used: 92609
+	[I] Total time: 68.92 seconds
+	[I] Tokens per second: 1343.72
+moonshotai/kimi-k2-thinking:
+	[I] Final score: 88.2/123
+	[I] Total tokens used: 81805
+	[I] Total time: 1007.36 seconds
+	[I] Tokens per second: 81.21
+
