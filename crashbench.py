@@ -31,6 +31,10 @@ config = configparser.ConfigParser()
 api_key = ""
 service_name = 'Neuroengine-Large'
 
+# Global token and time tracking
+total_time_seconds = 0.0
+total_tokens = 0  # Includes reasoning tokens, excludes judge tokens
+
 
 class EngineType(Enum):
     """Enumeration of supported AI engines."""
@@ -78,7 +82,7 @@ def check_api_key_validity(key):
         exit(1)
 
 
-def call_AI_claude(systemprompt, prompt, model="claude-3-opus-20240229", max_tokens=8192, temperature=1.0):
+def call_AI_claude(systemprompt, prompt, model="claude-3-opus-20240229", max_tokens=8192, temperature=1.0, track_usage=False):
     """
     Call the Claude AI API to analyze code for bugs.
     
@@ -88,10 +92,12 @@ def call_AI_claude(systemprompt, prompt, model="claude-3-opus-20240229", max_tok
         model (str): The Claude model to use.
         max_tokens (int): Maximum tokens in the response.
         temperature (float): Temperature for response generation (0.0-2.0).
+        track_usage (bool): Whether to track token usage globally.
         
     Returns:
         str: The AI's response text.
     """
+    global total_tokens
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         print("Error: ANTHROPIC_API_KEY environment variable not set")
@@ -106,10 +112,13 @@ def call_AI_claude(systemprompt, prompt, model="claude-3-opus-20240229", max_tok
             {"role": "user", "content": prompt}
         ]
     )
+    # Track token usage if requested (input + output tokens)
+    if track_usage and hasattr(response, 'usage'):
+        total_tokens += response.usage.input_tokens + response.usage.output_tokens
     return response.content[0].text
 
 
-def call_AI_chatGPT(systemprompt, prompt, model, max_tokens=8192, temperature=1.0, reasoning_effort="high", judge_endpoint=None, judge_model=None, judge_apikey=None, return_reasoning=False, verbose=False):
+def call_AI_chatGPT(systemprompt, prompt, model, max_tokens=8192, temperature=1.0, reasoning_effort="high", judge_endpoint=None, judge_model=None, judge_apikey=None, return_reasoning=False, verbose=False, track_usage=False):
     """
     Call the OpenAI ChatGPT API to analyze code for bugs.
     
@@ -125,10 +134,12 @@ def call_AI_chatGPT(systemprompt, prompt, model, max_tokens=8192, temperature=1.
         judge_apikey (str): Optional judge API key.
         return_reasoning (bool): Whether to include reasoning content in response.
         verbose (bool): Whether to stream output to stdout.
+        track_usage (bool): Whether to track token usage globally.
         
     Returns:
         str: The AI's response text.
     """
+    global total_tokens
     # Use judge-specific configuration if provided
     if judge_endpoint is not None:
         base_url = judge_endpoint
@@ -155,6 +166,10 @@ def call_AI_chatGPT(systemprompt, prompt, model, max_tokens=8192, temperature=1.
         'stream': True
     }
     
+    # Add stream_options to include usage data (for token tracking)
+    if track_usage:
+        api_params['stream_options'] = {'include_usage': True}
+    
     # Add reasoning_effort parameter for o1/o3 models if not default
     if reasoning_effort is not None:
         api_params['reasoning_effort'] = reasoning_effort
@@ -163,10 +178,12 @@ def call_AI_chatGPT(systemprompt, prompt, model, max_tokens=8192, temperature=1.
     
     full_response = ""
     reasoning_response = ""
+    usage_data = None
     
     for chunk in stream:
         # Check if chunk has usage information (some APIs provide this)
         if hasattr(chunk, 'usage') and chunk.usage is not None:
+            usage_data = chunk.usage
             continue  # Skip usage chunks
         
         # Collect reasoning tokens if present (for o1/o3 models) - stream them in verbose mode
@@ -189,6 +206,11 @@ def call_AI_chatGPT(systemprompt, prompt, model, max_tokens=8192, temperature=1.
     analysis_end = full_response.find("</analysis>")
     if analysis_end > -1:
         full_response = full_response[analysis_end + 11:]
+    
+    # Track token usage if requested (input + output + reasoning tokens)
+    if track_usage and usage_data is not None:
+        reasoning_tokens = getattr(usage_data, 'reasoning_tokens', 0)
+        total_tokens += usage_data.prompt_tokens + usage_data.completion_tokens + reasoning_tokens
     
     return full_response
 
@@ -234,7 +256,7 @@ def call_neuroengine(code, prompt, max_tokens=8192, temperature=1.0):
     return answer
 
 
-def findBug(file_path, bugline, service_name, engine, max_tokens=8192, temperature=1.0, reasoning_effort="high", judge_endpoint=None, judge_model=None, judge_apikey=None, verbose=False):
+def findBug(file_path, bugline, service_name, engine, max_tokens=8192, temperature=1.0, reasoning_effort="high", judge_endpoint=None, judge_model=None, judge_apikey=None, verbose=False, track_usage=False):
     """
     Analyze a code file to find bugs using the specified AI engine.
     
@@ -250,6 +272,7 @@ def findBug(file_path, bugline, service_name, engine, max_tokens=8192, temperatu
         judge_model (str): Optional judge model.
         judge_apikey (str): Optional judge API key.
         verbose (bool): Whether to stream output to stdout.
+        track_usage (bool): Whether to track token usage globally.
         
     Returns:
         int: 1 if bug found within +/- 2 lines, 0 otherwise
@@ -273,11 +296,11 @@ def findBug(file_path, bugline, service_name, engine, max_tokens=8192, temperatu
     # Build initial prompt
     prompt = f"{prompt}{code}{postprompt}\n"
     
-    # Call the appropriate AI engine
+    # Call the appropriate AI engine (track usage for main report, not judge)
     if engine == EngineType.OPENAI:
-        report = call_AI_chatGPT(systemprompt, prompt, service_name, max_tokens, temperature, reasoning_effort, return_reasoning=True, verbose=verbose)
+        report = call_AI_chatGPT(systemprompt, prompt, service_name, max_tokens, temperature, reasoning_effort, return_reasoning=True, verbose=verbose, track_usage=track_usage)
     elif engine == EngineType.CLAUDE:
-        report = call_AI_claude(systemprompt, prompt, service_name, max_tokens, temperature)
+        report = call_AI_claude(systemprompt, prompt, service_name, max_tokens, temperature, track_usage=track_usage)
     elif engine == EngineType.NEUROENGINE:
         report = call_neuroengine(code, prompt, max_tokens, temperature)
     
@@ -307,6 +330,18 @@ def findBug(file_path, bugline, service_name, engine, max_tokens=8192, temperatu
         return 1
     return 0
 
+def format_time(seconds):
+    """Format time in a human-readable format."""
+    if seconds < 60:
+        return f"{seconds:.1f} sec"
+    elif seconds < 3600:
+        return f"{seconds/60:.1f} min"
+    else:
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        return f"{hours}h {minutes}m"
+
+
 def main():
     """
     Main function to run the crashbench bug detection benchmark.
@@ -316,6 +351,8 @@ def main():
     """
     global service_name
     global engine
+    global total_time_seconds
+    global total_tokens
     
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description='CrashBench: AI bug detection benchmarking tool')
@@ -405,12 +442,13 @@ def main():
             executor.submit(findBug, filename, bugline, service_name, engine, max_tokens=args.max_tokens,
                           temperature=args.temperature, reasoning_effort=args.reasoning_effort,
                           judge_endpoint=args.judge_endpoint, judge_model=args.judge_model,
-                          judge_apikey=args.judge_apikey, verbose=args.verbose): (filename, bugline, section)
+                          judge_apikey=args.judge_apikey, verbose=args.verbose, track_usage=True): (filename, bugline, section)
             for filename, bugline, section in tasks
         }
         
         # Collect scores
         all_scores = []
+        passed_tests = 0  # Track number of passed tests
         completed = 0
         
         # Process results as they complete
@@ -423,12 +461,19 @@ def main():
                 if section == "real":
                     score *= 10.0
                 
+                # Track passed tests (score > 0 means the bug was found)
+                if score > 0:
+                    passed_tests += 1
+                
                 # Append individual score to list
                 all_scores.append(score)
                 
                 # Calculate current progress
                 current_score = sum(all_scores) / args.repeat
                 progress = (completed / total_tasks) * 100
+                
+                # Calculate pass percentage
+                pass_percentage = (passed_tests / completed) * 100 if completed > 0 else 0
                 
                 # Calculate ETA
                 elapsed = time.time() - start_time
@@ -441,14 +486,15 @@ def main():
                 else:
                     eta_str = "calculating..."
                 
-                # Show progress update with ETA
-                print(f"[{completed:>3}/{total_tasks}] ({progress:>5.1f}%) ETA: {eta_str:>8s} {filename:30s} Score: {current_score:>6.2f}/{max_score}")
+                # Show progress update with ETA and pass percentage
+                print(f"[{completed:>3}/{total_tasks}] ({progress:>5.1f}%) ETA: {eta_str:>8s} {filename:30s} Score: {current_score:>6.2f}/{max_score} ({pass_percentage:>5.1f}%)")
                 
             except Exception as e:
                 print(f"[{completed:>3}/{total_tasks}] Error processing {filename}: {e}")
     
     # Calculate final totals (divided by repeat)
     total_score = sum(all_scores) / args.repeat
+    total_time_seconds = time.time() - start_time
     
     print(f"\n{'='*60}")
     print(f"Benchmark Results")
@@ -456,6 +502,8 @@ def main():
     percentage = (total_score / max_score) * 100 if max_score > 0 else 0
     print(f"Total Score: {total_score:.2f}/{max_score} ({percentage:.1f}%)")
     print(f"Tests Completed: {len(all_scores)}/{total_tasks}")
+    print(f"Total Time: {format_time(total_time_seconds)}")
+    print(f"Total Tokens: {total_tokens} (including reasoning tokens, excluding judge tokens)")
     print(f"{'='*60}\n")
 
 if __name__ == '__main__':
