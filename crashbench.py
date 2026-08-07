@@ -15,6 +15,7 @@ import configparser
 import os
 import re
 import time
+import traceback
 import anthropic
 import openai
 import tiktoken
@@ -46,7 +47,7 @@ class EngineType(Enum):
     OPENAI = "openai"
     CLAUDE = "claude"
     NEUROENGINE = "neuroengine"
-
+5
 
 def readConfig(filename):
     """
@@ -79,7 +80,7 @@ def check_api_key_validity(key):
     """
     global api_key
     try:
-        client = OpenAI(api_key=key, base_url=openai.api_base)
+        client = OpenAI(api_key=key, base_url=openai.api_base,default_headers={'User-Agent': 'Mozilla/5.0 (compatible; OpenAI-Client/1.0)'})
         client.models.list()
         api_key = key
     except Exception:
@@ -134,11 +135,8 @@ def call_AI_chatGPT(systemprompt, prompt, _model=None, max_tokens=8192, temperat
         max_tokens (int): Maximum tokens in the response.
         temperature (float): Temperature for response generation (0.0-2.0).
         reasoning_effort (str): Reasoning effort for o1/o3 models ("low", "medium", "high").
-        judge_endpoint (str): Optional judge API endpoint.
-        judge_model (str): Optional judge model.
-        judge_apikey (str): Optional judge API key.
         return_reasoning (bool): Whether to include reasoning content in response.
-        verbose (bool): Whether to stream output to stdout.
+        verbose (bool): Whether to stream output to stdout word-by-word.
         track_usage (bool): Whether to track token usage globally.
         
     Returns:
@@ -156,36 +154,53 @@ def call_AI_chatGPT(systemprompt, prompt, _model=None, max_tokens=8192, temperat
     else:
         api_key_to_use = api_key
     
-    client = OpenAI(api_key=api_key_to_use, base_url=base_url)
-    model_to_use = _model if _model is not None else model
+    client = OpenAI(api_key=api_key_to_use, base_url=base_url,default_headers={'User-Agent': 'Mozilla/5.0 (compatible; OpenAI-Client/1.0)'})
+    model_to_use = _model #if _model is not None else model
     
     # Build API parameters
     api_params = {
         'model': model_to_use,
         'messages': [
-            {'role': 'system', 'content': systemprompt},
-            {'role': 'user', 'content': prompt}
+#            {'role': 'system', 'content': systemprompt},
+            {'role': 'user', 'content': ("Instructions:\n\n"+prompt+"\n\n")*1}
         ],
         'temperature': temperature,
         'max_tokens': max_tokens,
-        'stream': False
+        'extra_body': {"chat_template_kwargs": {"enable_thinking": True}},
+        'stream': verbose,  # Enable streaming when verbose mode is on
     }
     
     # Add reasoning_effort parameter for o1/o3 models if not default
     if reasoning_effort is not None:
         api_params['reasoning_effort'] = reasoning_effort
     
+    full_response = ""
+    reasoning_response = ""
+    usage_data = None
+    
     for i in range(5):
-        response = client.chat.completions.create(**api_params)
-        full_response = ""
-        reasoning_response = ""
-        usage_data = getattr(response, 'usage', None)
-        # Collect reasoning content if present (for o1/o3 models)
-        if hasattr(response.choices[0].message, 'reasoning') and response.choices[0].message.reasoning is not None:
-            reasoning_response = response.choices[0].message.reasoning
-        # Collect regular content
-        if response.choices[0].message and response.choices[0].message.content is not None:
-            full_response = response.choices[0].message.content
+        if verbose:
+            # Stream response word-by-word
+            stream = client.chat.completions.create(**api_params)
+            for chunk in stream:
+                if hasattr(chunk.choices[0].delta, 'reasoning_content') and chunk.choices[0].delta.reasoning_content is not None:
+                    reasoning_response += chunk.choices[0].delta.reasoning_content
+                    print(chunk.choices[0].delta.reasoning_content, end="", flush=True)
+                if hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content is not None:
+                    full_response += chunk.choices[0].delta.content
+                    print(chunk.choices[0].delta.content, end="", flush=True)
+            # Get usage data from the last chunk
+            if hasattr(stream, 'usage'):
+                usage_data = stream.usage
+        else:
+            response = client.chat.completions.create(**api_params)
+            usage_data = getattr(response, 'usage', None)
+            # Collect reasoning content if present (for o1/o3 models)
+            if hasattr(response.choices[0].message, 'reasoning') and response.choices[0].message.reasoning is not None:
+                reasoning_response = response.choices[0].message.reasoning
+            # Collect regular content
+            if response.choices[0].message and response.choices[0].message.content is not None:
+                full_response = response.choices[0].message.content
         if len(full_response)>0:
             break
         print(f"[E] Response==0, retrying ({i}/5)...")
@@ -261,7 +276,8 @@ def findBug(file_path, bugline, service_name, engine, max_tokens=8192, temperatu
         track_usage (bool): Whether to track token usage globally.
         
     Returns:
-        int: 1 if bug found within +/- 2 lines, 0 otherwise
+        tuple: (score, detected_line) where score is 1 if bug found within +/- 2 lines, 0 otherwise,
+               and detected_line is the line number detected by the judge (0 if not detected)
     """
     # Read the code file
     try:
@@ -316,6 +332,8 @@ Do not write anything else except that line."""
     if(verbose):
         print(("-"*80)+"judge prompt")
         print(judge_prompt)
+    if judge_model == None:
+        judge_model = service_name
     judge_report = call_AI_chatGPT(GLOBAL_SYSTEM_PROMPT, judge_prompt, judge_model, max_tokens, temperature, reasoning_effort='low',
                      endpoint=judge_endpoint, apikey=judge_apikey)
     if(verbose):
@@ -329,12 +347,13 @@ Do not write anything else except that line."""
         detected_line = int(match.group(1))
         diff = abs(bugline - detected_line)
     else:
+        detected_line = 0
         diff = abs(bugline - 0)
     
     # We give it a +/- 2 lines range
     if diff < 3:
-        return 1
-    return 0
+        return (1, detected_line)
+    return (0, detected_line)
 
 def format_time(seconds):
     """Format time in a human-readable format."""
@@ -444,12 +463,12 @@ def main():
     
     # Run tasks in parallel
     with ThreadPoolExecutor(max_workers=args.parallel) as executor:
-        # Submit all tasks
+        # Submit all tasks with retry tracking
         future_to_task = {
             executor.submit(findBug, filename, bugline, service_name, engine, max_tokens=args.max_tokens,
                           temperature=args.temperature, reasoning_effort=args.reasoning_effort,
                           judge_endpoint=args.judge_endpoint, judge_model=args.judge_model,
-                          judge_apikey=args.judge_apikey, verbose=args.verbose, track_usage=True): (filename, bugline, section)
+                          judge_apikey=args.judge_apikey, verbose=args.verbose, track_usage=True): (filename, bugline, section, 0)
             for filename, bugline, section in tasks
         }
         
@@ -460,10 +479,10 @@ def main():
         
         # Process results as they complete
         for future in as_completed(future_to_task):
-            filename, bugline, section = future_to_task[future]
+            filename, bugline, section, retry_count = future_to_task[future]
             completed += 1
             try:
-                score = future.result()
+                score, detected_line = future.result()
                 # Real tests have much more weight
                 if section == "real":
                     score *= 10.0
@@ -493,11 +512,29 @@ def main():
                 else:
                     eta_str = "calculating..."
                 
-                # Show progress update with ETA and pass percentage
-                print(f"[{completed:>3}/{total_tasks}] ({progress:>5.1f}%) ETA: {eta_str:>8s} {filename:30s} Score: {current_score:>6.2f}/{max_score} ({pass_percentage:>5.1f}%)")
+                # Show progress update with ETA, pass percentage, and detected bug line
+                print(f"[{completed:>3}/{total_tasks}] ({progress:>5.1f}%) ETA: {eta_str:>8s} {filename:30s} Score: {current_score:>6.2f}/{max_score} ({pass_percentage:>5.1f}%) Detected: {detected_line}, Actual: {bugline}, Score: {score}")
                 
             except Exception as e:
-                print(f"[{completed:>3}/{total_tasks}] Error processing {filename}: {e}")
+                # Print the filename and line number where the exception occurred
+                exc_line = traceback.extract_tb(e.__traceback__)[-1].lineno
+                print(f"[{completed:>3}/{total_tasks}] Error processing {filename} (line {exc_line}): {e}")
+                
+                # Retry logic: try up to 5 times before giving up
+                if retry_count < 4:
+                    new_retry_count = retry_count + 1
+                    print(f"  Retrying {filename} ({new_retry_count}/5)...")
+                    # Resubmit the task with incremented retry count
+                    new_future = executor.submit(findBug, filename, bugline, service_name, engine, max_tokens=args.max_tokens,
+                                                temperature=args.temperature, reasoning_effort=args.reasoning_effort,
+                                                judge_endpoint=args.judge_endpoint, judge_model=args.judge_model,
+                                                judge_apikey=args.judge_apikey, verbose=args.verbose, track_usage=True)
+                    future_to_task[new_future] = (filename, bugline, section, new_retry_count)
+                    total_tasks += 1  # Increment total tasks to account for retry
+                else:
+                    print(f"  Giving up on {filename} after 5 attempts")
+                    # Record as failed task with score 0
+                    all_scores.append(0)
     
     # Calculate final totals (divided by repeat)
     total_score = sum(all_scores) / args.repeat
